@@ -1,12 +1,15 @@
-name: Sync OTT Geo EPG to Cloudflare KV
+name: Sync EPG to GitHub Pages (Zero KV Writes)
 
 on:
   schedule:
-    - cron: "0 */8 * * *"
+    - cron: '0 */6 * * *'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
-  sync-epg:
+  build-and-publish:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -15,12 +18,19 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: '3.11'
 
-      - name: Run EPG Sync to Cloudflare KV
-        env:
-          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
-          CF_KV_NAMESPACE_ID: ${{ secrets.CF_KV_NAMESPACE_ID }}
-          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
-          PLAYLIST_URL: ${{ secrets.PLAYLIST_URL }}
-        run: python3 sync_epg.py
+      - name: Generate compact JSON EPG files
+        run: python sync_epg.py
+
+      - name: Commit & Push EPG JSONs to repository
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add epg_data/
+          if ! git diff --staged --quiet; then
+            git commit -m "chore: update EPG JSON data"
+            git push
+          else
+            echo "No EPG changes to commit."
+          fi
